@@ -1,0 +1,462 @@
+{% set category_order = ["都市銀行", "地方銀行", "信用金庫"] %}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>金融機関ホームページ稼働状況ダッシュボード</title>
+<style>
+/* ─── リセット・基本 ─────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, "Hiragino Kaku Gothic ProN", "Meiryo", "Segoe UI", sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  background: #f5f6fa;
+  color: #1f2328;
+}
+a { color: #3b82d4; text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ─── レイアウト ────────────────────────────────────────── */
+.page-header {
+  background: #1f2328;
+  color: #fff;
+  padding: 18px 24px;
+}
+.page-header h1 { font-size: 18px; font-weight: 600; }
+.page-header .meta { font-size: 12px; color: #9ca3af; margin-top: 4px; }
+
+.container { max-width: 1400px; margin: 0 auto; padding: 20px 16px; }
+
+/* ─── サマリーカード ────────────────────────────────────── */
+.summary-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+}
+.card .label { font-size: 12px; color: #57606a; margin-bottom: 4px; }
+.card .value { font-size: 28px; font-weight: 700; }
+.card.up    .value { color: #16a34a; }
+.card.down  .value { color: #dc2626; }
+.card.unrch .value { color: #9ca3af; }
+.card.alert .value { color: #d97706; }
+.card.total .value { color: #1f2328; }
+
+/* ─── フィルターバー ────────────────────────────────────── */
+.filter-bar {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.filter-bar label { font-size: 12px; color: #57606a; font-weight: 600; }
+.filter-bar select, .filter-bar input[type=text] {
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  padding: 5px 8px;
+  font-size: 13px;
+  background: #fff;
+}
+.filter-bar input[type=text] { min-width: 200px; }
+
+/* ─── テーブル ──────────────────────────────────────────── */
+.table-wrap {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+.table-title {
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  background: #f7f8fa;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.table-title .count { font-size: 12px; color: #57606a; font-weight: 400; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+th {
+  background: #f7f8fa;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+th:hover { background: #eef0f3; }
+th .sort-icon { margin-left: 4px; color: #9ca3af; font-size: 10px; }
+td {
+  border-bottom: 1px solid #f0f0f0;
+  padding: 7px 10px;
+  font-size: 13px;
+  vertical-align: middle;
+}
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: #fafbff; }
+
+/* ─── ステータスバッジ ──────────────────────────────────── */
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.badge-up    { background: #dcfce7; color: #15803d; }
+.badge-down  { background: #fee2e2; color: #b91c1c; }
+.badge-unrch { background: #f3f4f6; color: #6b7280; }
+
+/* ─── カテゴリバッジ ────────────────────────────────────── */
+.cat-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.cat-city   { background: #ede9fe; color: #5b21b6; }
+.cat-region { background: #dbeafe; color: #1d4ed8; }
+.cat-shinkin{ background: #fef9c3; color: #854d0e; }
+
+/* ─── 応答時間バー ──────────────────────────────────────── */
+.rt-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.rt-bar .bar-bg {
+  flex: 1;
+  height: 6px;
+  background: #f3f4f6;
+  border-radius: 3px;
+  min-width: 60px;
+  max-width: 120px;
+}
+.rt-bar .bar-fill {
+  height: 6px;
+  border-radius: 3px;
+  background: #3b82d4;
+}
+.rt-bar .bar-fill.slow  { background: #f59e0b; }
+.rt-bar .bar-fill.vslow { background: #ef4444; }
+.rt-num { font-size: 12px; color: #57606a; white-space: nowrap; }
+
+/* ─── 停止情報アコーディオン ────────────────────────────── */
+.notice-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #d97706;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #fef3c7;
+}
+.notice-toggle:hover { background: #fde68a; }
+.notice-list {
+  display: none;
+  margin-top: 6px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 4px;
+  padding: 8px;
+}
+.notice-list.open { display: block; }
+.notice-item {
+  font-size: 12px;
+  padding: 3px 0;
+  border-bottom: 1px solid #fef3c7;
+  line-height: 1.5;
+}
+.notice-item:last-child { border-bottom: none; }
+.notice-date { color: #92400e; font-weight: 600; margin-right: 6px; }
+.notice-link { color: #d97706; font-size: 11px; margin-left: 6px; }
+
+/* ─── ページネーション ──────────────────────────────────── */
+.pagination {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  margin: 16px 0;
+  flex-wrap: wrap;
+}
+.page-btn {
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  background: #fff;
+}
+.page-btn:hover { background: #f7f8fa; }
+.page-btn.active { background: #3b82d4; color: #fff; border-color: #3b82d4; }
+
+/* ─── フッター ──────────────────────────────────────────── */
+footer {
+  text-align: center;
+  font-size: 12px;
+  color: #9ca3af;
+  padding: 20px;
+  border-top: 1px solid #e5e7eb;
+  margin-top: 20px;
+}
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>🏦 金融機関ホームページ稼働状況ダッシュボード</h1>
+  <div class="meta">生成日時: {{ generated_at }}　｜　対象: 都市銀行 / 地方銀行 / 信用金庫</div>
+</div>
+
+<div class="container">
+
+  <!-- サマリーカード -->
+  <div class="summary-cards">
+    <div class="card total">
+      <div class="label">対象機関数</div>
+      <div class="value">{{ stats.total }}</div>
+    </div>
+    <div class="card up">
+      <div class="label">稼働中 (UP)</div>
+      <div class="value">{{ stats.up }}</div>
+    </div>
+    <div class="card down">
+      <div class="label">応答異常 (DOWN)</div>
+      <div class="value">{{ stats.down }}</div>
+    </div>
+    <div class="card unrch">
+      <div class="label">接続不可</div>
+      <div class="value">{{ stats.unreachable }}</div>
+    </div>
+    <div class="card alert">
+      <div class="label">停止情報あり</div>
+      <div class="value">{{ stats.with_notices }}</div>
+    </div>
+    <div class="card total">
+      <div class="label">平均応答時間</div>
+      <div class="value" style="font-size:22px;">{{ stats.avg_response_ms }} ms</div>
+    </div>
+  </div>
+
+  <!-- フィルターバー -->
+  <div class="filter-bar">
+    <label>種別:</label>
+    <select id="filterCategory" onchange="applyFilters()">
+      <option value="">すべて</option>
+      <option value="都市銀行">都市銀行</option>
+      <option value="地方銀行">地方銀行</option>
+      <option value="信用金庫">信用金庫</option>
+    </select>
+    <label>ステータス:</label>
+    <select id="filterStatus" onchange="applyFilters()">
+      <option value="">すべて</option>
+      <option value="UP">UP</option>
+      <option value="DOWN">DOWN</option>
+      <option value="UNREACHABLE">UNREACHABLE</option>
+    </select>
+    <label>停止情報:</label>
+    <select id="filterNotice" onchange="applyFilters()">
+      <option value="">すべて</option>
+      <option value="yes">停止情報あり</option>
+      <option value="no">なし</option>
+    </select>
+    <label>検索:</label>
+    <input type="text" id="filterSearch" placeholder="機関名・URLを検索..." oninput="applyFilters()">
+    <span id="filteredCount" style="font-size:12px;color:#57606a;margin-left:auto;"></span>
+  </div>
+
+  <!-- テーブル -->
+  <div class="table-wrap">
+    <div class="table-title">
+      稼働状況一覧
+      <span class="count" id="tableCount"></span>
+    </div>
+    <table id="mainTable">
+      <thead>
+        <tr>
+          <th onclick="sortTable(0)">種別 <span class="sort-icon">⇅</span></th>
+          <th onclick="sortTable(1)">銀行コード <span class="sort-icon">⇅</span></th>
+          <th onclick="sortTable(2)">機関名 <span class="sort-icon">⇅</span></th>
+          <th onclick="sortTable(3)">ステータス <span class="sort-icon">⇅</span></th>
+          <th onclick="sortTable(4)">HTTP</th>
+          <th onclick="sortTable(5)">応答時間 <span class="sort-icon">⇅</span></th>
+          <th>公式URL</th>
+          <th>サービス停止情報</th>
+          <th onclick="sortTable(8)">確認日時 <span class="sort-icon">⇅</span></th>
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+      {% for row in rows %}
+      <tr
+        data-category="{{ row.category }}"
+        data-status="{{ row.status }}"
+        data-notice="{{ 'yes' if row.notices else 'no' }}"
+        data-search="{{ row.name }} {{ row.url }} {{ row.code }}"
+      >
+        <td>
+          {% if row.category == "都市銀行" %}
+            <span class="cat-badge cat-city">都市銀行</span>
+          {% elif row.category == "地方銀行" %}
+            <span class="cat-badge cat-region">地方銀行</span>
+          {% else %}
+            <span class="cat-badge cat-shinkin">信用金庫</span>
+          {% endif %}
+        </td>
+        <td style="font-size:12px;color:#57606a;font-family:monospace;">{{ row.code }}</td>
+        <td style="font-weight:500;">{{ row.name }}</td>
+        <td>
+          {% if row.status == "UP" %}
+            <span class="badge badge-up">● UP</span>
+          {% elif row.status == "DOWN" %}
+            <span class="badge badge-down">✕ DOWN</span>
+          {% else %}
+            <span class="badge badge-unrch">— 接続不可</span>
+          {% endif %}
+        </td>
+        <td style="font-size:12px;color:#57606a;">
+          {% if row.http_status %}{{ row.http_status }}{% else %}—{% endif %}
+          {% if row.error %}<br><span style="color:#ef4444;font-size:11px;" title="{{ row.error }}">⚠ エラー</span>{% endif %}
+        </td>
+        <td>
+          {% if row.response_time_ms %}
+            {% set ms = row.response_time_ms | int %}
+            {% set pct = [ms // 50, 100] | min %}
+            {% set cls = "vslow" if ms > 8000 else ("slow" if ms > 3000 else "") %}
+            <div class="rt-bar">
+              <div class="bar-bg"><div class="bar-fill {{ cls }}" style="width:{{ pct }}%;"></div></div>
+              <span class="rt-num">{{ ms }} ms</span>
+            </div>
+          {% else %}
+            <span style="color:#9ca3af;font-size:12px;">—</span>
+          {% endif %}
+        </td>
+        <td style="font-size:12px;">
+          <a href="{{ row.url }}" target="_blank" rel="noopener">{{ row.url | truncate(45) }}</a>
+        </td>
+        <td>
+          {% if row.notices %}
+            <button class="notice-toggle" onclick="toggleNotice(this)">
+              ⚠ {{ row.notices | length }}件
+            </button>
+            <div class="notice-list">
+              {% for n in row.notices %}
+              <div class="notice-item">
+                {% if n.date %}<span class="notice-date">{{ n.date }}</span>{% endif %}
+                {% if n.link %}<a href="{{ n.link }}" target="_blank" rel="noopener">{{ n.title }}</a>{% else %}{{ n.title }}{% endif %}
+              </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <span style="color:#9ca3af;font-size:12px;">—</span>
+          {% endif %}
+        </td>
+        <td style="font-size:11px;color:#57606a;white-space:nowrap;">
+          {{ row.checked_at_jst }}
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+</div><!-- /container -->
+
+<footer>
+  金融機関ホームページ死活監視ツール — BankMonitor | 生成: {{ generated_at }}
+</footer>
+
+<script>
+// ─── フィルター ───────────────────────────────────────────────────────
+let sortCol = -1, sortAsc = true;
+
+function applyFilters() {
+  const cat    = document.getElementById('filterCategory').value;
+  const status = document.getElementById('filterStatus').value;
+  const notice = document.getElementById('filterNotice').value;
+  const search = document.getElementById('filterSearch').value.toLowerCase();
+
+  const rows = document.querySelectorAll('#tableBody tr');
+  let visible = 0;
+
+  rows.forEach(row => {
+    const rCat    = row.dataset.category;
+    const rStatus = row.dataset.status;
+    const rNotice = row.dataset.notice;
+    const rSearch = row.dataset.search.toLowerCase();
+
+    const ok = (!cat    || rCat    === cat)
+            && (!status || rStatus === status)
+            && (!notice || rNotice === notice)
+            && (!search || rSearch.includes(search));
+
+    row.style.display = ok ? '' : 'none';
+    if (ok) visible++;
+  });
+
+  document.getElementById('filteredCount').textContent =
+    `表示中: ${visible}件`;
+  document.getElementById('tableCount').textContent =
+    `${visible} / {{ rows | length }} 件`;
+}
+
+// ─── ソート ───────────────────────────────────────────────────────────
+function sortTable(col) {
+  if (sortCol === col) { sortAsc = !sortAsc; }
+  else { sortCol = col; sortAsc = true; }
+
+  const tbody = document.getElementById('tableBody');
+  const rows  = Array.from(tbody.querySelectorAll('tr'));
+
+  rows.sort((a, b) => {
+    const ac = a.cells[col] ? a.cells[col].innerText.trim() : '';
+    const bc = b.cells[col] ? b.cells[col].innerText.trim() : '';
+    // 数値列（応答時間）
+    if (col === 4) {
+      const am = parseInt(ac) || 999999;
+      const bm = parseInt(bc) || 999999;
+      return sortAsc ? am - bm : bm - am;
+    }
+    return sortAsc ? ac.localeCompare(bc, 'ja') : bc.localeCompare(ac, 'ja');
+  });
+
+  rows.forEach(r => tbody.appendChild(r));
+}
+
+// ─── 停止情報アコーディオン ───────────────────────────────────────────
+function toggleNotice(btn) {
+  const list = btn.nextElementSibling;
+  list.classList.toggle('open');
+}
+
+// 初期カウント表示
+applyFilters();
+</script>
+</body>
+</html>
