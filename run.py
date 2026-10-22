@@ -35,7 +35,7 @@ log = logging.getLogger("run")
 
 JST = timezone(timedelta(hours=9))
 
-REPORT_PATH = os.path.join(os.path.dirname(__file__), "report", "dashboard.html")
+REPORT_PATH = os.path.join(os.path.dirname(__file__), "report", "index.html")
 
 
 def step(name: str, fn, *args, **kwargs):

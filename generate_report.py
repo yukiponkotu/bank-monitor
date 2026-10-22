@@ -27,7 +27,7 @@ TEMPLATE_DIR  = os.path.join(BASE_DIR, "templates")
 REPORT_DIR    = os.path.join(BASE_DIR, "report")
 STATUS_CSV    = os.path.join(DATA_DIR, "status_results.csv")
 NOTICES_CSV   = os.path.join(DATA_DIR, "service_notices.csv")
-OUT_HTML      = os.path.join(REPORT_DIR, "dashboard.html")
+OUT_HTML      = os.path.join(REPORT_DIR, "index.html")
 
 JST = timezone(timedelta(hours=9))
 
