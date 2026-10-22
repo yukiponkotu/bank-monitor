@@ -37,9 +37,11 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          # リモートの最新を取得してからコミット・プッシュする
+          git fetch origin main
+          git rebase origin/main
           git add data/status_results.csv data/service_notices.csv report/index.html
           git diff --cached --quiet || git commit -m "chore: update dashboard $(date -u +'%Y-%m-%d %H:%M UTC')"
-          git pull --rebase origin main
           git push
 
   deploy:
