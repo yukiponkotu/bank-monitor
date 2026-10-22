@@ -1,0 +1,67 @@
+name: Update Bank Monitor Dashboard
+
+on:
+  schedule:
+    # 毎日 JST 7:00 / 13:00 / 19:00 に実行（UTC 22:00 / 04:00 / 10:00）
+    - cron: '0 22 * * *'
+    - cron: '0 4 * * *'
+    - cron: '0 10 * * *'
+  workflow_dispatch:  # 手動実行も可能
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run BankMonitor (skip URL collect, use existing institutions.csv)
+        run: python run.py --skip-collect
+
+      - name: Commit updated data and report
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/status_results.csv data/service_notices.csv report/dashboard.html
+          git diff --cached --quiet || git commit -m "chore: update dashboard $(date -u +'%Y-%m-%d %H:%M UTC')"
+          git push
+
+  deploy:
+    needs: update
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main  # update ジョブでプッシュされた最新を取得
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload report directory
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: report/
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
